@@ -31,14 +31,8 @@ client.on('messageCreate', async message => {
     }
 
     const count = parseInt(args[0]);
-
-    if (!count || isNaN(count)) {
-      return message.reply('❗ Укажи число: `!снеси 30`');
-    }
-
-    if (count < 1 || count > 10000) {
-      return message.reply('❗ Укажи число от 1 до 10000: `!снеси 500`');
-    }
+    if (!count || isNaN(count)) return message.reply('❗ Укажи число: `!снеси 30`');
+    if (count < 1 || count > 10000) return message.reply('❗ Укажи число от 1 до 10000.');
 
     let deleted = 0;
     let left = count;
@@ -51,7 +45,7 @@ client.on('messageCreate', async message => {
         left -= messages.size;
 
         if (messages.size < toDelete) break;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(res => setTimeout(res, 1000)); // антиспам
       }
 
       message.channel.send(`🧹 Удалено ${deleted} сообщений`).then(msg => {
@@ -59,7 +53,7 @@ client.on('messageCreate', async message => {
       });
     } catch (err) {
       console.error('[bulkDelete ERROR]', err);
-      message.reply('⚠️ Ошибка при удалении. Возможно, некоторые сообщения слишком старые.');
+      message.reply('⚠️ Ошибка: возможно, сообщения старше 14 дней.');
     }
   }
 
@@ -67,15 +61,15 @@ client.on('messageCreate', async message => {
   if (command === '!инфо') {
     return message.channel.send(
       `🩸 **Я — официальный бот проекта BLOODGRIEF** 🩸\n\n` +
-      `Я отвечаю за тикеты, модерацию, команды и порядок на сервере.\n` +
-      `Меня создал и настроил создатель проекта, чтобы обеспечить безопасность и функциональность.\n\n` +
-      `⚙️ Мой функционал будет расширяться с каждым обновлением.\n\n` +
+      `Я отвечаю за тикеты, модерацию и автоматизацию сервера.\n` +
+      `Меня создал и настроил основатель проекта.\n\n` +
+      `⚙️ Буду развиваться с каждым апдейтом.\n\n` +
       `**Сделал:** NaSkille`
     );
   }
 });
 
-// Ответ в тикет-канале с пингом
+// Ответ в тикет-канале
 client.on('channelCreate', async channel => {
   if (!channel.isTextBased()) return;
   if (!channel.name.includes('ticket')) return;
@@ -92,16 +86,18 @@ client.on('channelCreate', async channel => {
         channel.send(`👋 Привет! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
       }
     } catch (err) {
-      console.error('[TICKET RESPONSE ERROR]', err);
+      console.error('[TICKET AUTO-RESPONSE ERROR]', err);
     }
   }, 2000);
 });
 
+// Запуск бота
 client.login(process.env.TOKEN);
 
-// Обманка для Render (порт)
+// Фейковый сервер для Render
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive');
 }).listen(process.env.PORT || 3000);
+
 
