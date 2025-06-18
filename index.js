@@ -24,36 +24,47 @@ client.on('messageCreate', async message => {
   const args = message.content.trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
-  // !снеси до 10000 сообщений
+  // !снеси — удаление до 5000 любых сообщений
   if (command === '!снеси') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
       return message.reply('❌ У тебя нет прав на удаление сообщений.');
     }
 
     const count = parseInt(args[0]);
-    if (!count || isNaN(count)) return message.reply('❗ Укажи число: `!снеси 30`');
-    if (count < 1 || count > 10000) return message.reply('❗ Укажи число от 1 до 10000.');
-
-    let deleted = 0;
-    let left = count;
+    if (!count || isNaN(count)) return message.reply('❗ Укажи количество сообщений: `!снеси 50`');
+    if (count < 1 || count > 5000) return message.reply('❗ Укажи число от 1 до 5000.');
 
     try {
-      while (left > 0) {
-        const toDelete = left > 100 ? 100 : left;
-        const messages = await message.channel.bulkDelete(toDelete, true);
-        deleted += messages.size;
-        left -= messages.size;
+      let deleted = 0;
+      let lastMessageId = null;
 
-        if (messages.size < toDelete) break;
-        await new Promise(res => setTimeout(res, 1000)); // антиспам
+      while (deleted < count) {
+        const options = { limit: 100 };
+        if (lastMessageId) options.before = lastMessageId;
+
+        const messages = await message.channel.messages.fetch(options);
+        if (messages.size === 0) break;
+
+        for (const msg of messages.values()) {
+          if (deleted >= count) break;
+          try {
+            await msg.delete();
+            deleted++;
+            await new Promise(res => setTimeout(res, 300)); // задержка (анти-спам)
+          } catch (err) {
+            console.log(`❌ Не смог удалить сообщение ID ${msg.id}`, err);
+          }
+          lastMessageId = msg.id;
+        }
       }
 
-      message.channel.send(`🧹 Удалено ${deleted} сообщений`).then(msg => {
-        setTimeout(() => msg.delete(), 3000);
+      message.channel.send(`✅ Удалено ${deleted} сообщений.`).then(msg => {
+        setTimeout(() => msg.delete(), 5000);
       });
+
     } catch (err) {
-      console.error('[bulkDelete ERROR]', err);
-      message.reply('⚠️ Ошибка: возможно, сообщения старше 14 дней.');
+      console.error('[slowDelete ERROR]', err);
+      message.reply('⚠️ Произошла ошибка при удалении сообщений.');
     }
   }
 
@@ -69,7 +80,7 @@ client.on('messageCreate', async message => {
   }
 });
 
-// Ответ в тикет-канале
+// Автоответ в тикет-канале с пингом
 client.on('channelCreate', async channel => {
   if (!channel.isTextBased()) return;
   if (!channel.name.includes('ticket')) return;
@@ -86,12 +97,11 @@ client.on('channelCreate', async channel => {
         channel.send(`👋 Привет! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
       }
     } catch (err) {
-      console.error('[TICKET AUTO-RESPONSE ERROR]', err);
+      console.error('[TICKET RESPONSE ERROR]', err);
     }
   }, 2000);
 });
 
-// Запуск бота
 client.login(process.env.TOKEN);
 
 // Фейковый сервер для Render
@@ -99,5 +109,6 @@ http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive');
 }).listen(process.env.PORT || 3000);
+
 
 
