@@ -10,7 +10,6 @@ const client = new Client({
   ]
 });
 
-// 🟢 При запуске
 client.once('ready', () => {
   console.log(`🟢 Бот ${client.user.tag} успешно запущен!`);
 
@@ -23,7 +22,6 @@ client.once('ready', () => {
   });
 });
 
-// 💬 Обработка текстовых команд
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
@@ -60,7 +58,7 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// 🎟️ Автоответ в новый тикет-канал через 2 сек с пингом автора
+// 🎟️ Автоответ в тикет через 2 сек (только один раз, с пингом автора)
 client.on('channelCreate', async (channel) => {
   if (
     channel.type === 0 && // текстовый канал
@@ -68,18 +66,20 @@ client.on('channelCreate', async (channel) => {
   ) {
     setTimeout(async () => {
       try {
-        // Ищем первое сообщение от НЕ бота
-        const fetched = await channel.messages.fetch({ limit: 5 });
-        const firstUserMessage = fetched
-          .filter(msg => !msg.author.bot)
-          .first();
+        const messages = await channel.messages.fetch({ limit: 10 });
 
-        if (firstUserMessage) {
-          const userId = firstUserMessage.author.id;
-          await channel.send(`👋 Привет, <@${userId}>! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
-        } else {
-          await channel.send(`👋 Привет! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
-        }
+        // Проверка: бот уже писал?
+        const alreadySent = messages.some(msg =>
+          msg.author.id === client.user.id &&
+          msg.content.includes('Жди стафф')
+        );
+        if (alreadySent) return;
+
+        // Поиск первого сообщения от пользователя
+        const userMessage = messages.find(msg => !msg.author.bot);
+        const mention = userMessage ? `<@${userMessage.author.id}>` : '';
+
+        await channel.send(`👋 Привет, ${mention} Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
       } catch (err) {
         console.error('❌ Ошибка при автоответе в тикет:', err);
       }
@@ -87,7 +87,4 @@ client.on('channelCreate', async (channel) => {
   }
 });
 
-// 🔐 Запуск бота
 client.login(process.env.TOKEN);
-
-
