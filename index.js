@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, Partials, PermissionsBitField } = require('discord.js');
-const http = require('http'); // 👈 подключаем сервер для Render
+const http = require('http');
 
 const client = new Client({
   intents: [
@@ -24,7 +24,7 @@ client.on('messageCreate', async message => {
   const args = message.content.trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
-  // !снеси
+  // !снеси до 10000 сообщений
   if (command === '!снеси') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
       return message.reply('❌ У тебя нет прав на удаление сообщений.');
@@ -36,18 +36,30 @@ client.on('messageCreate', async message => {
       return message.reply('❗ Укажи число: `!снеси 30`');
     }
 
-    if (count > 100 || count < 1) {
-      return message.reply('❗ Укажи число от 1 до 100: `!снеси 30`');
+    if (count < 1 || count > 10000) {
+      return message.reply('❗ Укажи число от 1 до 10000: `!снеси 500`');
     }
 
+    let deleted = 0;
+    let left = count;
+
     try {
-      await message.channel.bulkDelete(count + 1, true);
-      message.channel.send(`🧹 Удалено ${count} сообщений`).then(msg => {
+      while (left > 0) {
+        const toDelete = left > 100 ? 100 : left;
+        const messages = await message.channel.bulkDelete(toDelete, true);
+        deleted += messages.size;
+        left -= messages.size;
+
+        if (messages.size < toDelete) break;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      message.channel.send(`🧹 Удалено ${deleted} сообщений`).then(msg => {
         setTimeout(() => msg.delete(), 3000);
       });
     } catch (err) {
       console.error('[bulkDelete ERROR]', err);
-      message.reply('⚠️ Не удалось удалить сообщения. Возможно, они слишком старые.');
+      message.reply('⚠️ Ошибка при удалении. Возможно, некоторые сообщения слишком старые.');
     }
   }
 
@@ -63,19 +75,21 @@ client.on('messageCreate', async message => {
   }
 });
 
-// Автоответ в тикет-канале
+// Ответ в тикет-канале с пингом
 client.on('channelCreate', async channel => {
   if (!channel.isTextBased()) return;
   if (!channel.name.includes('ticket')) return;
 
   setTimeout(async () => {
     try {
-      const messages = await channel.messages.fetch({ limit: 5 });
-      const userMessage = messages.find(msg => msg.author && !msg.author.bot);
+      const messages = await channel.messages.fetch({ limit: 10 });
+      const userMessage = messages.find(msg => !msg.author.bot);
       const user = userMessage?.author;
 
       if (user) {
-        channel.send(`👋 Привет, ${user}! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
+        channel.send(`👋 Привет, <@${user.id}>! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
+      } else {
+        channel.send(`👋 Привет! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
       }
     } catch (err) {
       console.error('[TICKET RESPONSE ERROR]', err);
@@ -83,10 +97,9 @@ client.on('channelCreate', async channel => {
   }, 2000);
 });
 
-// Авторизация
 client.login(process.env.TOKEN);
 
-// 🛡️ Фейковый порт для Render, чтобы он не крашил бота
+// Обманка для Render (порт)
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive');
