@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, PermissionsBitField } = require('discord.js');
 
 const client = new Client({
   intents: [
@@ -10,11 +10,9 @@ const client = new Client({
   ]
 });
 
-// ✅ Когда бот включается
 client.once('ready', () => {
-  console.log(`🟢 ${client.user.tag} запущен и готов!`);
+  console.log(`🟢 Бот ${client.user.tag} успешно запущен!`);
 
-  // Устанавливаем статус
   client.user.setPresence({
     activities: [{
       name: '🩸 Официальный бот проекта BLOODGRIEF 🩸',
@@ -24,20 +22,44 @@ client.once('ready', () => {
   });
 });
 
-// 💬 Пример автоответа на текстовое сообщение
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase();
+  const args = message.content.trim().split(/ +/g);
+  const command = args.shift().toLowerCase();
 
-  if (msg === '!привет' || msg === '!hello') {
-    message.reply('☠️ Добро пожаловать в BLOODGRIEF, смертный.');
+  // 💬 Приветствие
+  if (command === '!привет' || command === '!hello') {
+    return message.reply('☠️ Добро пожаловать в BLOODGRIEF, смертный.');
   }
 
-  if (msg === '!инфо') {
-    message.channel.send(`🩸 Это официальный бот проекта **BLOODGRIEF**. Здесь тебя ждёт боль, хаос и выживание.`);
+  // ℹ️ Информация
+  if (command === '!инфо') {
+    return message.channel.send(`🩸 Это официальный бот проекта **BLOODGRIEF**.\nМодерация, защита, тикеты и антикибермрак. Выживай или проиграй.`);
+  }
+
+  // 🧹 Команда удаления сообщений
+  if (command === '!снеси') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+      return message.reply('❌ У тебя нет прав на удаление сообщений.');
+    }
+
+    const count = parseInt(args[0]);
+    if (!count || isNaN(count) || count < 1 || count > 100) {
+      return message.reply('❗ Укажи количество сообщений от 1 до 100, например: `!снеси 20`');
+    }
+
+    try {
+      await message.channel.bulkDelete(count + 1, true);
+      message.channel.send(`🧹 Удалено ${count} сообщений`).then(msg => {
+        setTimeout(() => msg.delete(), 3000);
+      });
+    } catch (err) {
+      console.error(err);
+      message.reply('⚠️ Не удалось удалить сообщения. Возможно, они слишком старые или нет прав.');
+    }
   }
 });
 
-// 🔐 Токен теперь через переменные окружения (для безопасности)
+// 🔐 Токен (через Render переменную TOKEN)
 client.login(process.env.TOKEN);
