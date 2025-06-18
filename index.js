@@ -1,77 +1,43 @@
-const {
-  Client,
-  GatewayIntentBits,
-  ActivityType,
-  PermissionsBitField,
-  SlashCommandBuilder,
-  REST,
-  Routes
-} = require('discord.js');
+const { Client, GatewayIntentBits, Partials, PermissionsBitField } = require('discord.js');
+const http = require('http'); // 👈 подключаем сервер для Render
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates
-  ]
+    GatewayIntentBits.MessageContent
+  ],
+  partials: [Partials.Channel]
 });
 
-client.once('ready', async () => {
-  console.log(`🟢 Бот ${client.user.tag} успешно запущен!`);
-
+client.once('ready', () => {
+  console.log(`[BOT] ${client.user.tag} запущен!`);
   client.user.setPresence({
-    activities: [{
-      name: '🩸 Официальный бот проекта BLOODGRIEF 🩸',
-      type: ActivityType.Playing
-    }],
-    status: 'dnd'
+    activities: [{ name: '🩸 Официальный бот проекта BLOODGRIEF 🩸', type: 0 }],
+    status: 'online'
   });
-
-  // ➕ Slash-команды
-  const commands = [
-    new SlashCommandBuilder()
-      .setName('инфо')
-      .setDescription('Информация о проекте BLOODGRIEF')
-      .toJSON()
-  ];
-
-  const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: commands }
-    );
-    console.log('✅ Slash-команды успешно зарегистрированы');
-  } catch (err) {
-    console.error('❌ Ошибка при регистрации Slash-команд:', err);
-  }
 });
 
-// 💬 Обычные команды
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
+client.on('messageCreate', async message => {
+  if (!message.guild || message.author.bot) return;
 
   const args = message.content.trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
-  if (command === '!привет' || command === '!hello') {
-    return message.reply('☠️ Добро пожаловать в BLOODGRIEF, смертный.');
-  }
-
-  if (command === '!инфо') {
-    return message.channel.send(`🩸 Это официальный бот проекта **BLOODGRIEF**.\nМодерация, защита, тикеты и антикибермрак. Выживай или проиграй.`);
-  }
-
+  // !снеси
   if (command === '!снеси') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
       return message.reply('❌ У тебя нет прав на удаление сообщений.');
     }
 
     const count = parseInt(args[0]);
-    if (!count || isNaN(count) || count < 1 || count > 100) {
-      return message.reply('❗ Укажи количество сообщений от 1 до 100, например: `!снеси 20`');
+
+    if (!count || isNaN(count)) {
+      return message.reply('❗ Укажи число: `!снеси 30`');
+    }
+
+    if (count > 100 || count < 1) {
+      return message.reply('❗ Укажи число от 1 до 100: `!снеси 30`');
     }
 
     try {
@@ -80,54 +46,49 @@ client.on('messageCreate', async (message) => {
         setTimeout(() => msg.delete(), 3000);
       });
     } catch (err) {
-      console.error(err);
-      message.reply('⚠️ Не удалось удалить сообщения. Возможно, они слишком старые или нет прав.');
+      console.error('[bulkDelete ERROR]', err);
+      message.reply('⚠️ Не удалось удалить сообщения. Возможно, они слишком старые.');
     }
   }
+
+  // !инфо
+  if (command === '!инфо') {
+    return message.channel.send(
+      `🩸 **Я — официальный бот проекта BLOODGRIEF** 🩸\n\n` +
+      `Я отвечаю за тикеты, модерацию, команды и порядок на сервере.\n` +
+      `Меня создал и настроил создатель проекта, чтобы обеспечить безопасность и функциональность.\n\n` +
+      `⚙️ Мой функционал будет расширяться с каждым обновлением.\n\n` +
+      `**Сделал:** NaSkille`
+    );
+  }
 });
 
-// 🎟️ Авто-сообщение в тикет через 2 сек с пингом (одноразово)
-client.on('channelCreate', async (channel) => {
-  if (
-    channel.type === 0 &&
-    channel.name.startsWith('ticket')
-  ) {
-    setTimeout(async () => {
-      try {
-        let userMessage;
-        for (let i = 0; i < 2; i++) {
-          const messages = await channel.messages.fetch({ limit: 10 });
+// Автоответ в тикет-канале
+client.on('channelCreate', async channel => {
+  if (!channel.isTextBased()) return;
+  if (!channel.name.includes('ticket')) return;
 
-          // Проверка — бот уже писал?
-          const alreadySent = messages.some(msg =>
-            msg.author.id === client.user.id &&
-            msg.content.includes('Жди стафф')
-          );
-          if (alreadySent) return;
+  setTimeout(async () => {
+    try {
+      const messages = await channel.messages.fetch({ limit: 5 });
+      const userMessage = messages.find(msg => msg.author && !msg.author.bot);
+      const user = userMessage?.author;
 
-          userMessage = messages.find(msg => !msg.author.bot);
-          if (userMessage) break;
-
-          await new Promise(res => setTimeout(res, 2000)); // ждём ещё 2 сек
-        }
-
-        const mention = userMessage ? `<@${userMessage.author.id}>` : '';
-        await channel.send(`👋 Привет, ${mention} Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
-      } catch (err) {
-        console.error('❌ Ошибка при автоответе в тикет:', err);
+      if (user) {
+        channel.send(`👋 Привет, ${user}! Жди стафф — скоро кто-то из команды ответит на твой тикет.`);
       }
-    }, 2000);
-  }
+    } catch (err) {
+      console.error('[TICKET RESPONSE ERROR]', err);
+    }
+  }, 2000);
 });
 
-// 🔁 Обработка Slash-команды
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'инфо') {
-    await interaction.reply('🩸 Это официальный бот проекта **BLOODGRIEF**.\nМодерация, тикеты, защита и хаос.');
-  }
-});
-
+// Авторизация
 client.login(process.env.TOKEN);
+
+// 🛡️ Фейковый порт для Render, чтобы он не крашил бота
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Bot is alive');
+}).listen(process.env.PORT || 3000);
 
