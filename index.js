@@ -22,19 +22,19 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
   if (!message.guild || message.author.bot) return;
   const prefix = '!';
-
   if (!message.content.startsWith(prefix)) return;
+
   const args = message.content.slice(prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
   // !инфо
   if (command === 'инфо') {
     return message.channel.send(
-      `🩸 **Я — официальный бот проекта BLOODGRIEF** 🩸\n\n` +
-      `Я отвечаю за тикеты, модерацию и автоматизацию сервера.\n` +
-      `Меня создал и настроил основатель проекта.\n\n` +
-      `⚙️ Буду развиваться с каждым апдейтом.\n\n` +
-      `**Сделал:** NaSkille`
+      '🩸 **Я — официальный бот проекта BLOODGRIEF** 🩸\n\n' +
+      'Я отвечаю за тикеты, модерацию и автоматизацию сервера.\n' +
+      'Меня создал и настроил основатель проекта.\n\n' +
+      '⚙️ Буду развиваться с каждым апдейтом.\n\n' +
+      '**Сделал:** NaSkille'
     );
   }
 
@@ -94,18 +94,31 @@ client.on('messageCreate', async message => {
 
     const accountAge = Math.floor((Date.now() - target.user.createdAt) / (1000 * 60 * 60 * 24));
     const joinedAge = Math.floor((Date.now() - target.joinedAt) / (1000 * 60 * 60 * 24));
-    const isSuspicious = accountAge < 7;
+    const isSuspicious = accountAge < 7 || !target.user.avatar;
+    const riskyNameTags = ['cheat', 'hack', 'bypass', 'aura', 'aim', '1337'];
+    const tagLower = target.user.tag.toLowerCase();
+    const riskyName = riskyNameTags.find(w => tagLower.includes(w));
+    const forbiddenRoles = ['ЧС', 'Мут', 'На проверке'];
+    const hasForbidden = target.roles.cache.some(role => forbiddenRoles.includes(role.name));
+    const hasAvatar = !!target.user.avatar;
+    const hasNitro = target.user.avatar && target.user.avatar.startsWith('a_');
+    const presence = target.presence?.status || '⚫ Оффлайн';
 
     const embed = new EmbedBuilder()
-      .setColor(isSuspicious ? 0xff0000 : 0x00ff00)
+      .setColor(isSuspicious || riskyName || hasForbidden ? 0xff0000 : 0x00ff00)
       .setTitle(`📋 Проверка: ${target.user.tag}`)
       .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
       .addFields(
         { name: '🆔 Discord ID', value: target.id, inline: false },
+        { name: '📶 Статус', value: presence, inline: true },
         { name: '📅 Аккаунт создан', value: `<t:${Math.floor(target.user.createdTimestamp / 1000)}:R>`, inline: true },
         { name: '📥 На сервере с', value: `<t:${Math.floor(target.joinedTimestamp / 1000)}:R>`, inline: true },
+        { name: '🖼️ Аватар', value: hasAvatar ? '✅ Есть' : '❌ Нет', inline: true },
+        { name: '💎 Nitro', value: hasNitro ? '✅ Да' : '❌ Нет', inline: true },
         { name: '🎭 Роли', value: target.roles.cache.map(r => r.name).slice(1).join(', ') || 'нет', inline: false },
-        { name: '⚠️ Вывод', value: isSuspicious ? '❗ **Опасен (свежий аккаунт)**' : '✅ Безопасен', inline: false }
+        { name: '💣 Ник', value: riskyName ? `⚠️ Обнаружено: \`${riskyName}\`` : '✅ Чисто', inline: false },
+        { name: '🚫 Подозрительные роли', value: hasForbidden ? '❗ Есть запрещённые роли' : '✅ Нет', inline: false },
+        { name: '🔍 Вывод', value: (isSuspicious || riskyName || hasForbidden) ? '⚠️ Возможна опасность, требуется доп. проверка.' : '✅ Безопасен', inline: false }
       )
       .setFooter({ text: 'BLOODGRIEF — внутренняя проверка' })
       .setTimestamp();
@@ -114,7 +127,7 @@ client.on('messageCreate', async message => {
   }
 });
 
-// Ответ в тикет
+// Автоответ в тикет-канале
 client.on('channelCreate', async channel => {
   if (!channel.isTextBased()) return;
   if (!channel.name.includes('ticket')) return;
@@ -136,10 +149,13 @@ client.on('channelCreate', async channel => {
   }, 2000);
 });
 
+// Запуск
 client.login(process.env.TOKEN);
 
+// HTTP сервер для Render
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive');
 }).listen(process.env.PORT || 3000);
+
 
